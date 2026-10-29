@@ -88,6 +88,7 @@ button{font:inherit;cursor:pointer;color:inherit}button:focus-visible,a:focus-vi
 
 .tabs button{font-size:13px!important}
 .pkl{border:1px solid var(--line);border-radius:14px;background:#fff;margin-top:6px;max-height:240px;overflow:auto}.pkl button{display:block;width:100%;text-align:left;border:0;background:none;padding:12px 14px;font:inherit;font-size:14.5px;color:var(--ink);border-bottom:1px solid var(--line)}.pkl button:last-child{border-bottom:0}.pkl .pkn{color:var(--mute);font-size:13.5px}
+.sw{position:relative;margin:0 20px 10px;border-radius:18px;overflow:hidden;background:#C0392B;touch-action:pan-y}.sw .item{margin:0!important;width:100%!important;position:relative;z-index:1;transition:transform .18s ease;will-change:transform}.sw.drag .item{transition:none}.sw .sdel{position:absolute;top:0;right:0;bottom:0;width:92px;border:0;background:#C0392B;color:#fff;font:600 14px inherit;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer}.sw .sdel svg{width:22px;height:22px}
 .list .item{box-sizing:border-box;min-height:104px;height:104px;overflow:hidden;font:inherit;color:var(--ink);cursor:pointer}
 .list .item .mini{flex:0 0 46px}
 .list .item>div:nth-child(2){flex:1;min-width:0;line-height:1.35}
@@ -521,7 +522,28 @@ function histRender(){const A2=hist.filter(h=>P[h.k]),cnt=v=>A2.filter(h=>(h.via
  else if(hsort=="low"||hsort=="high"){rows.sort((a,b)=>ranked(a,b,hsort=="low"?1:-1));let r=0;html=rows.map(h=>item(h.k,sc(h)==null?0:++r,x(h))).join("")}
  else if(hsort=="brand"){rows.sort((a,b)=>P[a.k].brand.localeCompare(P[b.k].brand)||P[a.k].name.localeCompare(P[b.k].name));html=rows.map(h=>item(h.k,0,x(h))).join("")}
  else{rows.sort((a,b)=>P[a.k].cat.localeCompare(P[b.k].cat)||ranked(a,b,1));let c="";html=rows.map(h=>{const hd=P[h.k].cat!=c?(c=P[h.k].cat,`<h4 style="margin:12px 20px 6px;color:var(--mute);font-size:13px;text-transform:uppercase;letter-spacing:.04em">${c}</h4>`):"";return hd+item(h.k,0,x(h))}).join("")}
- fill('#hl',html)}
+ fill('#hl',html);swipeWire()}
+
+/* ---- swipe left to delete a history row ---- */
+let DELIDS=[];try{DELIDS=JSON.parse(localStorage.getItem('lc_histdel'))||[]}catch(e){}
+function swipeWire(){const wrap=$('#hl');wrap.querySelectorAll('.item').forEach(it=>{const k=it.dataset.k,w=document.createElement('div');w.className='sw';it.parentNode.insertBefore(w,it);
+ const del=document.createElement('button');del.type='button';del.className='sdel';del.setAttribute('aria-label','Delete from history');del.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg>Delete';
+ w.appendChild(del);w.appendChild(it);
+ let x0=0,y0=0,off=0,open=false,drag=false,moved=false,down=false;const OPEN=-92;
+ const set=v=>{off=v;it.style.transform=v?`translateX(${v}px)`:''};
+ const closeAll=()=>wrap.querySelectorAll('.sw').forEach(o=>{if(o!==w&&o._close)o._close()});
+ w._close=()=>{open=false;set(0)};
+ w.addEventListener('pointerdown',e=>{if(e.target.closest('.sdel'))return;down=true;drag=false;moved=false;x0=e.clientX;y0=e.clientY;closeAll()});
+ w.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-x0,dy=e.clientY-y0;if(!drag){if(Math.abs(dx)>10&&Math.abs(dx)>Math.abs(dy)*1.5){drag=true;moved=true;w.classList.add('drag');try{w.setPointerCapture(e.pointerId)}catch(_){}}else return}
+  set(Math.max(-w.offsetWidth,Math.min(0,(open?OPEN:0)+dx)))});
+ const end=()=>{if(!down)return;down=false;w.classList.remove('drag');if(!drag)return;setTimeout(()=>{moved=false},60);if(off<-w.offsetWidth*.6){remove()}else if(off<-46){open=true;set(OPEN)}else{open=false;set(0)}drag=false};
+ w.addEventListener('pointerup',end);w.addEventListener('pointercancel',end);
+ w.addEventListener('click',e=>{if(moved){e.stopPropagation();e.preventDefault();moved=false;return}if(open&&!e.target.closest('.sdel')){e.stopPropagation();e.preventDefault();w._close()}},true);
+ del.onclick=e=>{e.stopPropagation();remove()};
+ const remove=()=>{set(-w.offsetWidth);setTimeout(()=>histDelete(k),160)}})}
+async function histDelete(k){const i=hist.findIndex(h=>h.k==k);if(i<0)return;hist.splice(i,1);lsSet('lc_hist',hist);histRender();toastMsg('Removed from history');
+ const id=SIDS[k];if(!id||!signed())return;try{await api('DELETE','/history/'+id)}catch(e){if(!e.status||e.status>=500){if(!DELIDS.includes(id)){DELIDS.push(id);lsSet('lc_histdel',DELIDS)}}}}
+async function retryHistDeletes(){for(const id of DELIDS.slice()){try{await api('DELETE','/history/'+id);DELIDS=DELIDS.filter(x=>x!=id);lsSet('lc_histdel',DELIDS)}catch(e){if(e.status&&e.status<500){DELIDS=DELIDS.filter(x=>x!=id);lsSet('lc_histdel',DELIDS)}}}}
 $('#hs').onchange=e=>{hsort=e.target.value;try{localStorage.setItem('lc_hsort',hsort)}catch(e){}histRender()};
 /* ---- setup (3 steps) ---- */
 function setupView(){const u=UN[S.type],dots=[1,2,3].map(i=>`<i style="flex:1;height:5px;border-radius:9px;background:${i<=S.step?'var(--teal)':'#d3d9d2'}"></i>`).join("");
@@ -1119,7 +1141,7 @@ function claimSheet(){sheet("Check a claim","What does the research say?",`<p cl
    `<p class="mut" style="font-size:12px;margin-top:10px">${esc(d.note)} Searched PubMed on ${esc(d.checked)} for: ${esc(d.query.join(', '))}.</p>`}
   catch(e){$('#clo').innerHTML='<p class="mut">'+esc(e.message||'Something went wrong. Try again.')+'</p>'}}}
 /* ---- history ---- */
-async function syncHist(){const srv=await api('GET','/history'),byId={};srv.items.forEach(i=>byId[i.id]=i);let changed=false;
+async function syncHist(){await retryHistDeletes();const srv=await api('GET','/history'),byId={};srv.items.forEach(i=>byId[i.id]=i);let changed=false;
  for(const it of srv.items){let k=Object.keys(SIDS).find(x=>SIDS[x]===it.id&&P[x]);if(!k){k=fromServer(await api('GET','/products/'+it.id));changed=true}
   const t=utc(it.last_at),h=hist.find(x=>x.k==k);if(!h){hist.push({k,t,via:VIAOF[it.kind]||"scan"});changed=true}else{if(t>h.t+1500){h.t=t;changed=true}if(it.kind=="added"&&h.via!="added"){h.via="added";changed=true}}}
  const push=[];for(const h of hist){if(!P[h.k])continue;const id=await sidOf(h.k);if(!id)continue;const s=byId[id],kind=KIND[h.via||"scan"];if(!s||(kind=="added"&&s.kind!="added")||h.t>utc(s.last_at)+2000)push.push({product_id:id,kind,at:naive(h.t)})}
@@ -1202,7 +1224,7 @@ const uget=k=>{const sg=signed()&&ME;if(k=="name")return(sg&&ME.name)||UP.name||
 const initials=()=>{const n=uget("name").trim();return n?n.split(/\s+/).slice(0,2).map(x=>x[0].toUpperCase()).join(""):"?"};
 const avHTML=sz=>{const a=uget("avatar");return`<span class="av" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*.38)}px">${a?`<img src="${a}" alt="">`:esc(initials())}</span>`};
 function setChip(st){const b=$('#acct');if(!b)return;b.className="cbtn acct"+(signed()?(st=="err"?" err":st=="sync"?"":" ok"):"");b.title=signed()?(st=="err"?"Offline":st=="sync"?"Syncing…":"Synced"):"Not signed in";b.innerHTML=avHTML(24)+"<span>Profile</span>"+(signed()?'<i class="sd"></i>':"")}
-const APP_V="v42";
+const APP_V="v43";
 function ping(name,props){try{if(signed())api('POST','/events',{name,props:props||{}}).catch(()=>{})}catch(e){}}
 let ERRN=0;function reportErr(msg,where,stack){try{if(!API||ERRN>=5)return;ERRN++;msg=String(msg||"error").slice(0,300);fetch(API+'/errors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({msg,where:String(where||"").slice(0,300),stack:String(stack||"").slice(0,3000),v:APP_V}),keepalive:true}).catch(()=>{})}catch(e){}}
 window.addEventListener('error',e=>reportErr(e.message,(e.filename||"").split('/').pop()+":"+e.lineno,e.error&&e.error.stack));
