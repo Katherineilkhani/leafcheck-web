@@ -541,8 +541,11 @@ function swipeWire(){const wrap=$('#hl');wrap.querySelectorAll('.item').forEach(
  w.addEventListener('click',e=>{if(moved){e.stopPropagation();e.preventDefault();moved=false;return}if(open&&!e.target.closest('.sdel')){e.stopPropagation();e.preventDefault();w._close()}},true);
  del.onclick=e=>{e.stopPropagation();remove()};
  const remove=()=>{set(-w.offsetWidth);setTimeout(()=>histDelete(k),160)}})}
-async function histDelete(k){const i=hist.findIndex(h=>h.k==k);if(i<0)return;hist.splice(i,1);lsSet('lc_hist',hist);histRender();toastMsg('Removed from history');
- const id=SIDS[k];if(!id||!signed())return;try{await api('DELETE','/history/'+id)}catch(e){if(!e.status||e.status>=500){if(!DELIDS.includes(id)){DELIDS.push(id);lsSet('lc_histdel',DELIDS)}}}}
+function toastUndo(t,fn){const e=$('#toast');e.innerHTML=esc(t)+' <b id="tu" style="margin-left:10px;text-decoration:underline;cursor:pointer">Undo</b>';e.style.display='block';clearTimeout(e.h);e.h=setTimeout(()=>e.style.display='none',5000);e.onclick=ev=>{if(ev.target.id=='tu'){fn();e.style.display='none';clearTimeout(e.h)}else e.style.display='none'}}
+async function histDelete(k){const i=hist.findIndex(h=>h.k==k);if(i<0)return;const h=hist[i];hist.splice(i,1);lsSet('lc_hist',hist);histRender();
+ const id=SIDS[k];let undone=false;if(id&&signed()&&!DELIDS.includes(id)){DELIDS.push(id);lsSet('lc_histdel',DELIDS)}
+ toastUndo('Removed from history',()=>{undone=true;if(!hist.some(x=>x.k==k))hist.push(h);lsSet('lc_hist',hist);if(id){DELIDS=DELIDS.filter(x=>x!=id);lsSet('lc_histdel',DELIDS)}histRender()});
+ await new Promise(r=>setTimeout(r,5200));if(undone)return;if(id&&signed())await retryHistDeletes()}
 async function retryHistDeletes(){for(const id of DELIDS.slice()){try{await api('DELETE','/history/'+id);DELIDS=DELIDS.filter(x=>x!=id);lsSet('lc_histdel',DELIDS)}catch(e){if(e.status&&e.status<500){DELIDS=DELIDS.filter(x=>x!=id);lsSet('lc_histdel',DELIDS)}}}}
 $('#hs').onchange=e=>{hsort=e.target.value;try{localStorage.setItem('lc_hsort',hsort)}catch(e){}histRender()};
 /* ---- setup (3 steps) ---- */
@@ -1018,7 +1021,7 @@ async function keyForSid(id){let k=Object.keys(SIDS).find(x=>SIDS[x]===id&&P[x])
 let syncT=0;function schedSync(){if(!signed())return;clearTimeout(syncT);syncT=setTimeout(syncAll,900)}
 let syncing=false,again=false;
 async function syncAll(){if(!signed())return;if(syncing){again=true;return}syncing=true;setChip('sync');let st='ok';
- try{ME=await api('GET','/me');lsSet('lc_me',ME);if(premium&&!ME.premium)await pushPremium(true);else if(!premium&&ME.premium)premium=true;await syncProfile();await syncHist();await syncQuit();await syncUgc()}catch(e){if(e.status===401){signOut(true);syncing=false;return}st='err'}
+ try{ME=await api('GET','/me');lsSet('lc_me',ME);if(premium&&!ME.premium){await pushPremium(true);if(window.LC_NATIVE&&!(ME&&ME.premium)){premium=false}}else if(!premium&&ME.premium)premium=true;await syncProfile();await syncHist();await syncQuit();await syncUgc()}catch(e){if(e.status===401){signOut(true);syncing=false;return}st='err'}
  syncing=false;setChip(st);lsSet('lc_lastsync',Date.now());if(again){again=false;schedSync()}}
 /* ---- posts & reviews sync: your items go up with a permanent id; everyone's come down and merge in ---- */
 const uidNew=()=>"u"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -1224,7 +1227,7 @@ const uget=k=>{const sg=signed()&&ME;if(k=="name")return(sg&&ME.name)||UP.name||
 const initials=()=>{const n=uget("name").trim();return n?n.split(/\s+/).slice(0,2).map(x=>x[0].toUpperCase()).join(""):"?"};
 const avHTML=sz=>{const a=uget("avatar");return`<span class="av" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*.38)}px">${a?`<img src="${a}" alt="">`:esc(initials())}</span>`};
 function setChip(st){const b=$('#acct');if(!b)return;b.className="cbtn acct"+(signed()?(st=="err"?" err":st=="sync"?"":" ok"):"");b.title=signed()?(st=="err"?"Offline":st=="sync"?"Syncing…":"Synced"):"Not signed in";b.innerHTML=avHTML(24)+"<span>Profile</span>"+(signed()?'<i class="sd"></i>':"")}
-const APP_V="v43";
+const APP_V="v44";
 function ping(name,props){try{if(signed())api('POST','/events',{name,props:props||{}}).catch(()=>{})}catch(e){}}
 let ERRN=0;function reportErr(msg,where,stack){try{if(!API||ERRN>=5)return;ERRN++;msg=String(msg||"error").slice(0,300);fetch(API+'/errors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({msg,where:String(where||"").slice(0,300),stack:String(stack||"").slice(0,3000),v:APP_V}),keepalive:true}).catch(()=>{})}catch(e){}}
 window.addEventListener('error',e=>reportErr(e.message,(e.filename||"").split('/').pop()+":"+e.lineno,e.error&&e.error.stack));
