@@ -18,6 +18,7 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px 6px;
 <div class="card" id="q" hidden><div style="display:flex;justify-content:space-between;align-items:center"><b id="cnt"></b><span><button class="o" id="rf">Refresh</button> <button class="o" id="so">Sign out</button></span></div>
 <table><thead><tr><th>Content</th><th>Reason</th><th>Status</th><th>Reported</th><th></th></tr></thead><tbody id="rows"></tbody></table>
 <div id="dmv" style="margin-top:14px"></div>
+<h2 style="margin-top:28px">Staff access log</h2><p class="n">Every time staff opened a reported private chat.</p><div id="dal"></div>
 <p class="n">Content ids: p = post, c = comment, rv = review, rr = review reply. The text shown is a copy of up to 300 characters sent by the person who reported it, so it can be wrong or edited. Posts and reviews still live on users' phones, so Remove hides the item for people whose app checks the server list; full server-side storage of posts is a later step.</p></div>
 <div class="card" id="mt" hidden><h2 style="font-family:Georgia,serif;margin:0 0 4px">Beta health</h2><p class="n" style="margin:0 0 8px">Counts only. Retention = accounts that opened the app N days after signing up. Groups under 20 people are noisy.</p><div id="mtb">Loading…</div></div>
 <div class="card" id="rs" hidden><h2 style="font-family:Georgia,serif;margin:0 0 4px">Source finder</h2>
@@ -34,7 +35,7 @@ const $=s=>document.querySelector(s);let API=sessionStorage.api||new URLSearchPa
 $('#api').value=API;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function call(m,p,b){const r=await fetch(API.replace(/\/$/,'')+p,{method:m,headers:Object.assign({'Content-Type':'application/json'},TOK?{Authorization:'Bearer '+TOK}:{}),body:b?JSON.stringify(b):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(j.detail||'Error '+r.status),{status:r.status});return j}
-async function load(){try{const d=await call('GET','/admin/content-reports?status=open');$('#login').hidden=true;$('#q').hidden=false;loadR();loadU();loadM();
+async function load(){try{const d=await call('GET','/admin/content-reports?status=open');$('#login').hidden=true;$('#q').hidden=false;loadR();loadU();loadM();loadAL();
  const by={};d.items.forEach(i=>{(by[i.content_id]=by[i.content_id]||{id:i.content_id,n:0,reasons:new Set(),status:i.status,at:i.created_at,ex:'',au:''}).n++;if(i.excerpt&&!by[i.content_id].ex){by[i.content_id].ex=i.excerpt;by[i.content_id].au=i.author||''}by[i.content_id].reasons.add(i.reason);if(i.status=='hidden')by[i.content_id].status='hidden'});
  const L=Object.values(by);$('#cnt').textContent=L.length+' open item'+(L.length==1?'':'s');
  $('#rows').innerHTML=L.length?L.map(x=>`<tr><td><b>${esc(x.id)}</b>${x.au?` <span class="n">by ${esc(x.au)}</span>`:''}<div class="n">${x.n} report${x.n==1?'':'s'}</div>${x.ex?`<div style="margin-top:4px;background:#f3f6f4;padding:6px 8px;border-radius:8px;max-width:360px">${esc(x.ex)}</div>`:''}</td><td>${[...x.reasons].map(esc).join(', ')}</td><td><span class="tag ${x.status=='hidden'?'h':''}">${x.status=='hidden'?'Hidden for everyone':'Open'}</span></td><td class="n">${esc(x.at.slice(0,16).replace('T',' '))} UTC</td><td>${x.id[0]=='d'&&x.id.length>6?`<button data-v="${esc(x.id.slice(1))}">View chat</button> `:''}<button class="o" data-d="cleared" data-i="${esc(x.id)}">Keep up</button> <button class="r" data-d="removed" data-i="${esc(x.id)}">Remove</button></td></tr>`).join(''):'<tr><td colspan="5" class="n">Nothing waiting. Nice.</td></tr>';
@@ -42,8 +43,9 @@ async function load(){try{const d=await call('GET','/admin/content-reports?statu
  document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>viewChat(b.dataset.v))}
  catch(e){$('#err').textContent=e.status==403?'That account is not staff.':e.status==401?'Please sign in.':'Could not reach the server.';$('#login').hidden=false;$('#q').hidden=true}}
 
+async function loadAL(){try{const d=await call('GET','/admin/dm-audit');$('#dal').innerHTML=d.items.length?'<table><thead><tr><th>When (UTC)</th><th>Staff</th><th>Message</th></tr></thead><tbody>'+d.items.map(i=>`<tr><td class="n">${esc(i.at.slice(0,16).replace('T',' '))}</td><td>${esc(i.staff)}</td><td class="n">${esc(i.message)}</td></tr>`).join('')+'</tbody></table>':'<p class="n">No chats have been opened.</p>'}catch(e){}}
 async function viewChat(uid){const box=$('#dmv');box.innerHTML='<p class="n">Loading...</p>';
- try{const d=await call('GET','/admin/dm/'+encodeURIComponent(uid));
+ try{const d=await call('GET','/admin/dm/'+encodeURIComponent(uid));loadAL();
   box.innerHTML=`<div style="border:1px solid #d8e0db;border-radius:12px;padding:14px;background:#fff;max-width:640px"><b>Reported private chat</b> <span class="n">between ${esc(d.sender.name)} and ${esc(d.recipient.name)}. Only the reported message and a few around it are shown.</span>
   ${d.messages.map(x=>`<div style="margin:8px 0;padding:8px 10px;border-radius:10px;background:${x.reported?'#fdecea':'#f3f6f4'}"><span class="n">${esc(x.from_name)} · ${esc(new Date(x.ms).toLocaleString())}${x.reported?' · REPORTED':''}</span><div>${esc(x.body)}</div></div>`).join('')}
   <p class="n">${d.reports_against_sender} member${d.reports_against_sender==1?'':'s'} reported messages from ${esc(d.sender.name)}. ${d.sender.suspended?'Their chat is paused.':''}</p>
