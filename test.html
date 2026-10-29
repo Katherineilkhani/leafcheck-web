@@ -176,7 +176,7 @@ button{font:inherit;cursor:pointer;color:inherit}button:focus-visible,a:focus-vi
 </div>
 <script>window.LC_API="https://leafcheck-api-yny0.onrender.com"</script><script>window.LC_DEMO=1</script><script>
 const FDA="https://www.fda.gov/tobacco-products/market-and-distribute-tobacco-product/tobacco-products-marketing-orders";
-const HPHC="https://www.fda.gov/tobacco-products/products-ingredients-components/harmful-and-potentially-harmful-constituents-tobacco-products-and-tobacco-smoke-established-list";
+const HPHC="https://www.federalregister.gov/documents/2026/04/23/2026-07910/harmful-and-potentially-harmful-constituents-in-tobacco-products-and-tobacco-smoke-established-list";
 const SG="https://www.ncbi.nlm.nih.gov/books/NBK179276/";
 const NASEM="https://nap.nationalacademies.org/catalog/24952/public-health-consequences-of-e-cigarettes";
 const COCH="https://doi.org/10.1002/14651858.CD010216.pub8";
@@ -1229,7 +1229,7 @@ const uget=k=>{const sg=signed()&&ME;if(k=="name")return(sg&&ME.name)||UP.name||
 const initials=()=>{const n=uget("name").trim();return n?n.split(/\s+/).slice(0,2).map(x=>x[0].toUpperCase()).join(""):"?"};
 const avHTML=sz=>{const a=uget("avatar");return`<span class="av" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*.38)}px">${a?`<img src="${a}" alt="">`:esc(initials())}</span>`};
 function setChip(st){const b=$('#acct');if(!b)return;b.className="cbtn acct"+(signed()?(st=="err"?" err":st=="sync"?"":" ok"):"");b.title=signed()?(st=="err"?"Offline":st=="sync"?"Syncing…":"Synced"):"Not signed in";b.innerHTML=avHTML(24)+"<span>Profile</span>"+(signed()?'<i class="sd"></i>':"")}
-const APP_V="v46";
+const APP_V="v47";
 function ping(name,props){try{if(signed())api('POST','/events',{name,props:props||{}}).catch(()=>{})}catch(e){}}
 let ERRN=0;function reportErr(msg,where,stack){try{if(!API||ERRN>=5)return;ERRN++;msg=String(msg||"error").slice(0,300);fetch(API+'/errors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({msg,where:String(where||"").slice(0,300),stack:String(stack||"").slice(0,3000),v:APP_V}),keepalive:true}).catch(()=>{})}catch(e){}}
 window.addEventListener('error',e=>reportErr(e.message,(e.filename||"").split('/').pop()+":"+e.lineno,e.error&&e.error.stack));
